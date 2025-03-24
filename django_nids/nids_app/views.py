@@ -10,6 +10,11 @@ import os
 import time
 from django.http import JsonResponse
 from scapy.all import sniff,TCP
+import matplotlib.pyplot as plt
+import seaborn as sns
+import io
+import urllib
+import base64
 
 def capture_packet():
     packet = sniff(count=1)[0]
@@ -32,11 +37,12 @@ def get_packet_data(request):
     return JsonResponse(data)
 
 
-rf_model = joblib.load(r"D:\AI_Based_Cybersecurity_Threat_Detection\jupyter_models\rf_model_smote.pkl")
-if_model = joblib.load(r"D:\AI_Based_Cybersecurity_Threat_Detection\jupyter_models\if_model_end1.pkl")
+rf_model = joblib.load(r"D:\AI Based Cybersecurity threat detection\AI_Based_Cybersecurity_Threat_Detection\jupyter_models\rf_model_smote.pkl")
+if_model = joblib.load(r"D:\AI Based Cybersecurity threat detection\AI_Based_Cybersecurity_Threat_Detection\jupyter_models\if_model_end1.pkl")
 
 def index(request):
-    return render(request, 'index.html')
+    context=plot()
+    return render(request, 'index.html',context)
 
 @api_view(['POST'])
 def detect_intrusion(request):
@@ -55,7 +61,6 @@ def detect_intrusion(request):
         feature_importances = rf_model.feature_importances_
         important_features = sorted(zip(df.columns, feature_importances), key=lambda x: x[1], reverse=True)[:3]
         reason = [f"{feature} contributed significantly" for feature, _ in important_features]
-
         if rf_prediction == 1 or if_prediction == -1:
             verdict = "Malicious"
             recommendations = [
@@ -89,3 +94,29 @@ def detect_intrusion(request):
     except Exception as e:
         print(f"Error occurred: {str(e)}")
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+def plot():
+    rf_model = joblib.load(r"D:\AI Based Cybersecurity threat detection\AI_Based_Cybersecurity_Threat_Detection\jupyter_models\rf_model_smote.pkl")
+    feature_importances = rf_model.feature_importances_
+    important_features = ["Flow Duration", "Flow Bytes/s", "Packet Length Variance", "Bwd Packet Length Mean", "Fwd IAT Mean", "Init_Win_bytes_forward", "Subflow Fwd Bytes"]
+
+    plt.figure(figsize=(6,4))
+    sns.barplot(x=feature_importances, y=important_features, palette="viridis")
+    plt.xlabel("Importance")
+    plt.ylabel("Features")
+    plt.title("Feature Importance in Intrusion Detection")
+
+    buffer = io.BytesIO()
+    plt.savefig(buffer, format="png", bbox_inches="tight")
+    buffer.seek(0)
+    plt.close()
+
+    # Encode the image
+    image_png = buffer.getvalue()
+    buffer.close()
+    graphic = base64.b64encode(image_png).decode("utf-8")
+
+    # Pass image to the template
+    context = {"graph": f"data:image/png;base64,{graphic}"}
+    return context
+    
